@@ -1,0 +1,259 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---- Packages (all standard on Overleaf; compiles with pdfLaTeX) ----
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, fit, backgrounds}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue]{hyperref}
+\usepackage{titlesec}
+
+% ---- Colors ----
+\definecolor{ink}{HTML}{1F2937}
+\definecolor{accent}{HTML}{2563EB}
+\definecolor{agent}{HTML}{7C3AED}
+\definecolor{soft}{HTML}{EEF2FF}
+\definecolor{code}{HTML}{F3F4F6}
+\definecolor{green}{HTML}{059669}
+
+% ---- Code listing style ----
+\lstdefinestyle{plain}{
+  backgroundcolor=\color{code},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  framesep=6pt,
+  rulecolor=\color{code},
+  xleftmargin=6pt,
+  showstringspaces=false
+}
+\lstset{style=plain}
+
+\titleformat{\section}{\Large\bfseries\color{ink}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection}{0.5em}{}
+
+% ---- TikZ node styles ----
+\tikzstyle{step}=[rectangle, rounded corners=3pt, draw=accent, fill=soft,
+  text width=8.4cm, align=left, inner sep=7pt, font=\small]
+\tikzstyle{ai}=[rectangle, rounded corners=3pt, draw=agent, fill=agent!8,
+  text width=8.4cm, align=left, inner sep=7pt, font=\small]
+\tikzstyle{arrow}=[-{Stealth[length=3mm]}, thick, draw=ink]
+
+\begin{document}
+
+% ======================= TITLE =======================
+\begin{center}
+  {\Huge\bfseries\color{ink} The Dependency EOL Firewall}\\[4pt]
+  {\large A plain-English guide to the n8n multi-agent workflow}\\[8pt]
+  {\small\color{ink}\url{https://github.com/Subharjun/n8n-dependency-eol-firewall}}
+\end{center}
+\vspace{6pt}
+\hrule
+\vspace{14pt}
+
+% ======================= 1. THE PROBLEM =======================
+\section{The problem, in one minute}
+
+Every software project depends on \textbf{other people's code} --- small building blocks called
+\emph{dependencies} (for example \texttt{express} or \texttt{chalk}). These blocks keep changing:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item Some get \textbf{deprecated} --- the author says ``stop using this.''
+  \item Some reach \textbf{end-of-life (EOL)} --- no more security fixes.
+  \item Some release a new \textbf{major version} with \textbf{breaking changes}.
+\end{itemize}
+
+If you don't notice in time, your project quietly becomes insecure or breaks on the next update.
+Existing tools either spam you with blind ``bump the version'' pull requests, or list security holes
+without telling you \emph{what to actually do}. \textbf{Nobody reads your real code and gives you a
+judged, ready-to-act plan.} That is the gap this workflow fills.
+
+% ======================= 2. THE IDEA =======================
+\section{The idea, in one paragraph}
+
+We built an automated ``firewall'' that runs on a schedule (say, every Monday). It looks at one GitHub
+repository, checks each dependency against the official registry, and asks \textbf{three specialised AI
+assistants (``agents'')} to cooperate: one decides \emph{whether} a dependency is genuinely risky,
+one figures out \emph{how much of your code it affects}, and one \emph{writes the fix} as a real
+GitHub Pull Request. On a healthy project it does nothing --- no noise.
+
+\begin{center}
+\colorbox{soft}{\parbox{0.92\linewidth}{\centering\small
+\textbf{Guiding principle:} \emph{The AI judges; plain code edits.}\\
+The agents only \emph{reason}. The actual version change in your file is done by exact,
+deterministic code --- so the edit is always correct.}}
+\end{center}
+
+% ======================= 3. VOCABULARY =======================
+\section{A tiny vocabulary (so nothing is confusing)}
+
+\begin{description}[leftmargin=0em, style=nextline]
+  \item[n8n] A visual ``automation'' tool. You connect boxes (called \textbf{nodes}) with arrows, and
+    data flows left-to-right through them. Think of it as a flowchart that actually runs.
+  \item[Node] One box = one action (fetch a web page, run a bit of code, call an AI model, \dots).
+  \item[LLM / model] A large language model (here we use \textbf{Groq}'s \texttt{gpt-oss-120b}). It reads
+    text and writes text.
+  \item[Agent] An LLM node given a \textbf{specific job} and forced to answer in a strict, structured
+    format (JSON) so the next node can use its answer reliably.
+  \item[Pull Request (PR)] The standard way to propose a code change on GitHub, so a human can review
+    and merge it.
+\end{description}
+
+% ======================= 4. THE BIG PICTURE =======================
+\section{The big picture}
+
+The workflow is a single chain of nodes. Data starts at the top and flows down. Purple boxes are the
+three AI agents; blue boxes are ordinary automation steps.
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm]
+  \node[step] (trig) {\textbf{1. Weekly Schedule} --- starts the workflow automatically.};
+  \node[step, below=of trig] (cfg) {\textbf{2. Config: owner/repo} --- the \emph{one} place you type which
+     GitHub repo to watch.};
+  \node[step, below=of cfg] (read) {\textbf{3--6. Gather facts} --- read \texttt{package.json}, list every
+     dependency, look each one up in the npm registry, compute ``how far behind / how stale.''};
+  \node[ai, below=of read] (a1) {\textbf{7. Agent 1 -- Watcher} --- \emph{Is this genuinely risky?}
+     Answers yes/no + a severity, conservatively.};
+  \node[step, below=of a1] (filt) {\textbf{8. Filter} --- keep only the risky ones. If none, the workflow
+     stops here (healthy repo).};
+  \node[ai, below=of filt] (a2) {\textbf{9--11. Agent 2 -- Blast-Radius} --- searches \emph{your} code and
+     reports which parts actually use this dependency and what breaks.};
+  \node[ai, below=of a2] (a3) {\textbf{12. Agent 3 -- Migration Drafter} --- writes the upgrade plan:
+     summary, risk, exact command, migration steps, and a diff.};
+  \node[step, below=of a3] (pr) {\textbf{13--19. Open the Pull Request} --- detect the default branch,
+     make a new branch, bump the version, commit, and open the PR.};
+
+  \draw[arrow] (trig)--(cfg);
+  \draw[arrow] (cfg)--(read);
+  \draw[arrow] (read)--(a1);
+  \draw[arrow] (a1)--(filt);
+  \draw[arrow] (filt)--(a2);
+  \draw[arrow] (a2)--(a3);
+  \draw[arrow] (a3)--(pr);
+\end{tikzpicture}
+\end{center}
+
+% ======================= 5. STEP BY STEP =======================
+\section{Step-by-step: what every node does}
+
+\subsection{Setup steps (gathering facts)}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Weekly Schedule.} A timer node. Every Monday at 06:00 it triggers a run. (You can also
+    press ``Execute'' by hand any time.)
+  \item \textbf{Config: owner/repo.} A tiny node holding two values, \texttt{owner} and \texttt{repo}.
+    Every GitHub step reads the target repository from here, so you configure the workflow in exactly
+    one place.
+  \item \textbf{Read package.json.} Downloads the project's \texttt{package.json} file (the list of
+    dependencies) from GitHub.
+  \item \textbf{Parse Manifest.} A small code node that turns that one file into \emph{many} items ---
+    one per dependency --- each carrying its name and installed version.
+  \item \textbf{npm Registry Lookup.} For each dependency, it asks the public npm registry: what is the
+    latest version? Is it deprecated? When was it last published?
+  \item \textbf{Assess Registry Facts.} Turns the registry answer into hard numbers: how many major
+    versions behind you are, how many days since the last release, any deprecation message. These
+    ``facts'' are what the first agent will judge.
+\end{enumerate}
+
+\subsection{The decision (Agent 1)}
+
+\begin{enumerate}[leftmargin=1.5em, start=7]
+  \item \textbf{Agent 1 -- Watcher / Triage.} Reads the facts for one dependency and returns strict JSON
+    like \texttt{\{at\_risk, risk\_type, severity, summary\}}. It is told to be \emph{conservative}: a
+    slightly-old-but-fine package is \emph{not} flagged. This prevents spam.
+  \item \textbf{Filter (``Only At-Risk'').} Lets through only the dependencies the Watcher flagged.
+    Everything else stops. \emph{This is why a healthy repo produces zero pull requests.}
+\end{enumerate}
+
+\subsection{The investigation (Agent 2)}
+
+\begin{enumerate}[leftmargin=1.5em, start=9]
+  \item \textbf{Search Repo For Usage.} Uses GitHub's code search to find where in \emph{your} project
+    the dependency is actually used.
+  \item \textbf{Summarize Usage.} Compresses those search hits into a short briefing (file paths +
+    snippets).
+  \item \textbf{Agent 2 -- Blast-Radius.} Reads that briefing and reports which functions/symbols you
+    use and how much an upgrade will disturb --- based only on evidence it was given, so it does not
+    make things up.
+\end{enumerate}
+
+\subsection{The fix (Agent 3 + plain code)}
+
+\begin{enumerate}[leftmargin=1.5em, start=12]
+  \item \textbf{Agent 3 -- Migration Drafter.} Writes the human-facing content: a summary, a risk
+    assessment, the exact upgrade command, a migration checklist, and a diff.
+  \item \textbf{Prep PR Vars.} Prepares a unique branch name and the PR title/body.
+  \item \textbf{Get Default Branch.} Asks GitHub whether the repo's main branch is called \texttt{main},
+    \texttt{master}, or something else --- so it works on \emph{any} repository.
+  \item \textbf{Get Base SHA \& Create Branch.} Makes a fresh branch to hold the change.
+  \item \textbf{Bump package.json (deterministic).} Plain code changes the version number precisely
+    (keeping symbols like \texttt{\^{}} or \texttt{\~{}}). \textbf{No AI touches the actual edit.}
+  \item \textbf{Commit \& Open Pull Request.} Commits the bumped file and opens a Pull Request, with the
+    agent's plan as the description, ready for a human to review and merge.
+\end{enumerate}
+
+% ======================= 6. WHY THREE AGENTS =======================
+\section{Why three agents instead of one prompt}
+
+\begin{center}
+\begin{tabular}{@{}p{3.1cm}p{4.2cm}p{6.4cm}@{}}
+\toprule
+\textbf{Agent} & \textbf{Question it answers} & \textbf{Why it is separate} \\
+\midrule
+Watcher & ``Is this worth acting on?'' & A cheap, conservative gate so the expensive steps only run on
+ real problems. \\
+Blast-Radius & ``How much of \emph{my} code breaks?'' & Needs your repository's code as evidence; a
+ different, focused task. \\
+Drafter & ``Write the fix.'' & Turning a verdict into a reviewable PR is its own writing job. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Splitting the work keeps each step simple, cheap, and reliable --- and lets the conservative
+gate stop noise before any writing happens.
+
+% ======================= 7. SETUP =======================
+\section{How to run it yourself (5 minutes)}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Import} one of the two \texttt{.json} files into n8n
+    (\emph{Workflows $\rightarrow$ Import from File}).
+  \item \textbf{Add two credentials} and select them on the nodes: a \textbf{Groq} API key (free tier at
+    \href{https://console.groq.com}{console.groq.com}) and a \textbf{GitHub} token with \texttt{repo}
+    scope.
+  \item \textbf{Open the ``Config: owner/repo'' node} and type your GitHub username and repository name.
+  \item \textbf{Press ``Execute Workflow''} to test, then toggle it \textbf{Active} for the weekly run.
+\end{enumerate}
+
+\noindent The two versions:
+\begin{itemize}[leftmargin=1.4em]
+  \item \texttt{dependency-eol-firewall-autopr.json} --- opens a \textbf{Pull Request}.
+  \item \texttt{dependency-eol-firewall.json} --- files a \textbf{GitHub Issue} instead (no code change).
+\end{itemize}
+
+% ======================= 8. OVERLEAF SYNC =======================
+\section{Editing this document in Overleaf}
+
+This file lives in the GitHub repo at \texttt{docs/explainer.tex}. To edit it in Overleaf and keep it
+synced:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item In Overleaf: \emph{New Project $\rightarrow$ Import from GitHub} and pick
+    \texttt{n8n-dependency-eol-firewall}. \emph{(Requires linking your GitHub account to Overleaf.)}
+  \item Edit here; use Overleaf's \emph{Menu $\rightarrow$ GitHub $\rightarrow$ Push} to send changes back,
+    and \emph{Pull} to fetch updates.
+  \item If you'd rather not link accounts: download this \texttt{.tex} and drag it into a blank Overleaf
+    project. It compiles with the default \textbf{pdfLaTeX} setting --- no extra configuration.
+\end{enumerate}
+
+\vspace{10pt}
+\hrule
+\vspace{6pt}
+\begin{center}
+\small\color{ink} Built with n8n + Groq. MIT licensed. Judge with AI, edit with code.
+\end{center}
+
+\end{document}
