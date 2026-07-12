@@ -1,0 +1,981 @@
+{
+  "name": "Dependency EOL Firewall \u2014 Auto-PR (Multi-Agent)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "id": "trigger-weekly",
+      "name": "Weekly Scan (Mon 06:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        120,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/contents/package.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "read-manifest",
+      "name": "Read package.json",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        120
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decode the GitHub file payload and flatten dependencies into one item per package.\nconst raw = $input.first().json;\nconst b64 = raw.content || (raw.data && raw.data.content) || '';\nconst text = Buffer.from(b64, 'base64').toString('utf8');\nlet pkg;\ntry { pkg = JSON.parse(text); } catch (e) { throw new Error('package.json is not valid JSON: ' + e.message); }\n\nconst deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };\nconst out = [];\nfor (const [name, range] of Object.entries(deps)) {\n  // Skip local/git/workspace pins we can't check on the registry.\n  if (/^(file:|link:|git|github:|workspace:|https?:)/i.test(range)) continue;\n  out.push({\n    json: {\n      name,\n      current_range: range,\n      current_version: String(range).replace(/^[~^>=<\\s]*/, '').split(' ')[0]\n    }\n  });\n}\nif (!out.length) return [{ json: { _empty: true } }];\nreturn out;"
+      },
+      "id": "parse-manifest",
+      "name": "Parse Manifest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://registry.npmjs.org/{{ encodeURIComponent($json.name) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "registry-lookup",
+      "name": "npm Registry Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const reg = $json;\nconst name = $('Parse Manifest').item.json.name;\nconst currentVersion = $('Parse Manifest').item.json.current_version;\nconst currentRange = $('Parse Manifest').item.json.current_range;\nconst distTags = reg['dist-tags'] || {};\nconst latest = distTags.latest || null;\nconst versions = reg.versions || {};\nconst time = reg.time || {};\nconst latestMeta = latest ? versions[latest] || {} : {};\nconst currentMeta = versions[currentVersion] || {};\nconst majorOf = v => v ? parseInt(String(v).split('.')[0], 10) : null;\nconst curMajor = majorOf(currentVersion), latestMajor = majorOf(latest);\nconst majorsBehind = (curMajor != null && latestMajor != null) ? Math.max(0, latestMajor - curMajor) : null;\nlet daysSinceLatest = null;\nif (latest && time[latest]) daysSinceLatest = Math.round((Date.now() - new Date(time[latest]).getTime())/86400000);\nreturn { json: { name, current_range: currentRange, current_version: currentVersion, latest_version: latest, majors_behind: majorsBehind, days_since_latest_publish: daysSinceLatest, current_version_deprecated: currentMeta.deprecated || null, latest_version_deprecated: latestMeta.deprecated || null, package_deprecated: reg.deprecated || null, engines: latestMeta.engines || null, homepage: reg.homepage || null, repository_url: (reg.repository && reg.repository.url) || null } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "assess-metadata",
+      "name": "Assess Registry Facts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a dependency risk triage agent. Given the registry facts for one package, decide whether it poses a real deprecation, end-of-life, or breaking-change risk that a maintainer should act on NOW. A stale-but-fine package is NOT a risk. Prioritize: explicit deprecation messages, packages 1+ majors behind, and long-unmaintained packages.\n\nPackage: {{ $json.name }}\nInstalled: {{ $json.current_range }} (resolved {{ $json.current_version }})\nLatest: {{ $json.latest_version }} ({{ $json.majors_behind }} major(s) behind)\nDays since latest publish: {{ $json.days_since_latest_publish }}\nPackage deprecated message: {{ $json.package_deprecated }}\nInstalled version deprecated message: {{ $json.current_version_deprecated }}\nEngines required by latest: {{ JSON.stringify($json.engines) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Return strict JSON only. Be decisive and conservative \u2014 only flag genuine, actionable risk."
+        }
+      },
+      "id": "agent-watcher",
+      "name": "Agent 1 \u2014 Watcher/Triage",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        1400,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "llm-watcher",
+      "name": "Claude \u2014 Watcher",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        630
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "REPLACE_GROQ_CRED_ID",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"at_risk\": true,\n  \"risk_type\": \"deprecation\",\n  \"severity\": \"high\",\n  \"summary\": \"Package is deprecated by its author in favor of X; installed version receives no security fixes.\"\n}"
+      },
+      "id": "parser-watcher",
+      "name": "Parse: Risk Verdict",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1500,
+        630
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.output.at_risk }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-risk",
+      "name": "Only At-Risk (med+)",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1080,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/search/code?q={{ encodeURIComponent($('Assess Registry Facts').item.json.name) }}+repo:{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.text-match+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "search-usage",
+      "name": "Search Repo For Usage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        460
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $json;\nconst items = (res && res.items) || [];\nconst files = items.slice(0,15).map(it => ({ path: it.path, snippets: (it.text_matches||[]).map(m => (m.fragment||'').trim()).slice(0,2) }));\nreturn { json: { name: $('Assess Registry Facts').item.json.name, latest_version: $('Assess Registry Facts').item.json.latest_version, current_version: $('Assess Registry Facts').item.json.current_version, risk_summary: $('Agent 1 \u2014 Watcher/Triage').item.json.output.summary, total_hits: res.total_count || files.length, affected_files: files } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "summarize-usage",
+      "name": "Summarize Usage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a blast-radius analyst. Using the code-search hits from THIS repo, identify which symbols/APIs of the package are actually used and how much work an upgrade will take. Do not speculate about files you cannot see.\n\nPackage: {{ $json.name }} (current {{ $json.current_version }} -> latest {{ $json.latest_version }})\nRisk: {{ $json.risk_summary }}\nTotal matches in repo: {{ $json.total_hits }}\nMatched files & snippets:\n{{ JSON.stringify($json.affected_files, null, 2) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Return strict JSON only. Base every claim on the provided snippets."
+        }
+      },
+      "id": "agent-blast",
+      "name": "Agent 2 \u2014 Blast-Radius",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        120,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "llm-blast",
+      "name": "Claude \u2014 Blast-Radius",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        60,
+        630
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "REPLACE_GROQ_CRED_ID",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"used_symbols\": [\"createClient\", \"legacyParse\"],\n  \"files_touched\": [\"src/db.js\", \"src/parse.js\"],\n  \"breaking_calls\": [\"legacyParse is removed in the new major\"],\n  \"estimated_effort\": \"medium\"\n}"
+      },
+      "id": "parser-blast",
+      "name": "Parse: Blast Radius",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        630
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a migration engineer. Write a complete GitHub Issue that a developer can act on immediately to eliminate this dependency risk. Include the exact upgrade command, an ordered migration plan tied to the specific files, and a unified-diff patch for the clearest change you can infer. If a change is uncertain, mark it as TODO rather than inventing code.\n\nPackage: {{ $('Summarize Usage').item.json.name }} {{ $('Summarize Usage').item.json.current_version }} -> {{ $('Summarize Usage').item.json.latest_version }}\nRisk: {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.risk_type }} / {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.severity }}\nSummary: {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.summary }}\nUsed symbols: {{ JSON.stringify($json.output.used_symbols) }}\nFiles touched: {{ JSON.stringify($json.output.files_touched) }}\nBreaking calls: {{ JSON.stringify($json.output.breaking_calls) }}\nEffort: {{ $json.output.estimated_effort }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Return strict JSON only. issue_body_markdown must be valid GitHub-flavored Markdown and include a fenced diff block when a patch is provided."
+        }
+      },
+      "id": "agent-drafter",
+      "name": "Agent 3 \u2014 Migration Drafter",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        120,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "llm-drafter",
+      "name": "Claude \u2014 Drafter",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        60,
+        990
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "REPLACE_GROQ_CRED_ID",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"issue_title\": \"[EOL] Migrate <pkg> 4.x -> 6.x (deprecated, security)\",\n  \"issue_body_markdown\": \"## Why\\n...\\n## Upgrade\\n```sh\\nnpm i pkg@6\\n```\\n## Migration plan\\n1. ...\\n## Suggested patch\\n```diff\\n--- a/src/db.js\\n+++ b/src/db.js\\n@@\\n-old\\n+new\\n```\",\n  \"labels\": [\"dependencies\", \"tech-debt\"]\n}"
+      },
+      "id": "parser-drafter",
+      "name": "Parse: Issue Content",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        990
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $('Assess Registry Facts').item.json;\nconst o = $json.output || {};\nconst slug = String(f.name).replace(/[^a-zA-Z0-9._-]/g,'-');\nreturn { json: { pkg: f.name, old_version: f.current_version, new_version: f.latest_version, branch: `eol-firewall/bump-${slug}-${f.latest_version}-${Date.now()}`, pr_title: o.issue_title || `chore(deps): bump ${f.name} to ${f.latest_version}`, pr_body: (o.issue_body_markdown || '') + '\\n\\n---\\n_Opened automatically by the Dependency EOL Firewall. Version bump is deterministic; migration notes are AI-drafted. Review before merge._' } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "prep-pr",
+      "name": "Prep PR Vars",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.github.com/repos/Subharjun/reimbursement-intake-v2/git/ref/heads/{{ $('GH: Get Default Branch').item.json.default_branch }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "gh-get-sha",
+      "name": "GH: Get Base SHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        820
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/Subharjun/reimbursement-intake-v2/git/refs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "ref",
+              "value": "=refs/heads/{{ $('Prep PR Vars').item.json.branch }}"
+            },
+            {
+              "name": "sha",
+              "value": "={{ $json.object.sha }}"
+            }
+          ]
+        }
+      },
+      "id": "gh-create-branch",
+      "name": "GH: Create Branch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        820
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.github.com/repos/Subharjun/reimbursement-intake-v2/contents/package.json?ref={{ $('Prep PR Vars').item.json.branch }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "gh-get-pkg",
+      "name": "GH: Get package.json",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        820
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Prep PR Vars').item.json;\nconst pj = $json;\nconst text = Buffer.from(pj.content, 'base64').toString('utf8');\nconst esc = s => String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst re = new RegExp('(\"' + esc(p.pkg) + '\"\\\\s*:\\\\s*\")([~^]?)' + esc(p.old_version) + '(\")');\nconst newText = text.replace(re, `$1$2${p.new_version}$3`);\nif (newText === text) throw new Error('version string not found for ' + p.pkg);\nreturn { json: { new_content_b64: Buffer.from(newText).toString('base64'), file_sha: pj.sha } };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "bump",
+      "name": "Bump package.json",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        1160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://api.github.com/repos/Subharjun/reimbursement-intake-v2/contents/package.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=chore(deps): bump {{ $('Prep PR Vars').item.json.pkg }} {{ $('Prep PR Vars').item.json.old_version }} -> {{ $('Prep PR Vars').item.json.new_version }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json.new_content_b64 }}"
+            },
+            {
+              "name": "sha",
+              "value": "={{ $json.file_sha }}"
+            },
+            {
+              "name": "branch",
+              "value": "={{ $('Prep PR Vars').item.json.branch }}"
+            }
+          ]
+        }
+      },
+      "id": "gh-commit",
+      "name": "GH: Commit Bump",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        1160
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/Subharjun/reimbursement-intake-v2/pulls",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $('Prep PR Vars').item.json.pr_title }}"
+            },
+            {
+              "name": "head",
+              "value": "={{ $('Prep PR Vars').item.json.branch }}"
+            },
+            {
+              "name": "base",
+              "value": "={{ $('GH: Get Default Branch').item.json.default_branch }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $('Prep PR Vars').item.json.pr_body }}"
+            }
+          ]
+        }
+      },
+      "id": "gh-open-pr",
+      "name": "GH: Open Pull Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        1160
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/repos/Subharjun/reimbursement-intake-v2",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "gh-default-branch",
+      "name": "GH: Get Default Branch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        990
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "o",
+              "name": "owner",
+              "value": "Subharjun",
+              "type": "string"
+            },
+            {
+              "id": "r",
+              "name": "repo",
+              "value": "eol-firewall-demo",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "config",
+      "name": "Config: owner/repo",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        120,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Weekly Scan (Mon 06:00)": {
+      "main": [
+        [
+          {
+            "node": "Config: owner/repo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read package.json": {
+      "main": [
+        [
+          {
+            "node": "Parse Manifest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Manifest": {
+      "main": [
+        [
+          {
+            "node": "npm Registry Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "npm Registry Lookup": {
+      "main": [
+        [
+          {
+            "node": "Assess Registry Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assess Registry Facts": {
+      "main": [
+        [
+          {
+            "node": "Agent 1 \u2014 Watcher/Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude \u2014 Watcher": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 1 \u2014 Watcher/Triage",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse: Risk Verdict": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Agent 1 \u2014 Watcher/Triage",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 1 \u2014 Watcher/Triage": {
+      "main": [
+        [
+          {
+            "node": "Only At-Risk (med+)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only At-Risk (med+)": {
+      "main": [
+        [
+          {
+            "node": "Search Repo For Usage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Repo For Usage": {
+      "main": [
+        [
+          {
+            "node": "Summarize Usage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Usage": {
+      "main": [
+        [
+          {
+            "node": "Agent 2 \u2014 Blast-Radius",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude \u2014 Blast-Radius": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 2 \u2014 Blast-Radius",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse: Blast Radius": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Agent 2 \u2014 Blast-Radius",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 2 \u2014 Blast-Radius": {
+      "main": [
+        [
+          {
+            "node": "Agent 3 \u2014 Migration Drafter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude \u2014 Drafter": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 3 \u2014 Migration Drafter",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse: Issue Content": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Agent 3 \u2014 Migration Drafter",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 3 \u2014 Migration Drafter": {
+      "main": [
+        [
+          {
+            "node": "Prep PR Vars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep PR Vars": {
+      "main": [
+        [
+          {
+            "node": "GH: Get Default Branch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GH: Create Branch": {
+      "main": [
+        [
+          {
+            "node": "GH: Get package.json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GH: Get package.json": {
+      "main": [
+        [
+          {
+            "node": "Bump package.json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bump package.json": {
+      "main": [
+        [
+          {
+            "node": "GH: Commit Bump",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GH: Commit Bump": {
+      "main": [
+        [
+          {
+            "node": "GH: Open Pull Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GH: Get Default Branch": {
+      "main": [
+        [
+          {
+            "node": "GH: Get Base SHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GH: Get Base SHA": {
+      "main": [
+        [
+          {
+            "node": "GH: Create Branch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config: owner/repo": {
+      "main": [
+        [
+          {
+            "node": "Read package.json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
