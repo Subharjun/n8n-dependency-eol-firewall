@@ -673,13 +673,13 @@
             {
               "id": "o",
               "name": "owner",
-              "value": "Subharjun",
+              "value": "YOUR_GITHUB_USERNAME",
               "type": "string"
             },
             {
               "id": "r",
               "name": "repo",
-              "value": "eol-firewall-demo",
+              "value": "YOUR_REPO_NAME",
               "type": "string"
             }
           ]
