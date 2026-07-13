@@ -366,7 +366,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://api.github.com/repos/Subharjun/reimbursement-intake-v2/git/ref/heads/{{ $('GH: Get Default Branch').item.json.default_branch }}",
+        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/git/ref/heads/{{ $('GH: Get Default Branch').item.json.default_branch }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
         "sendHeaders": true,
@@ -404,7 +404,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.github.com/repos/Subharjun/reimbursement-intake-v2/git/refs",
+        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/git/refs",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
         "sendHeaders": true,
@@ -457,7 +457,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://api.github.com/repos/Subharjun/reimbursement-intake-v2/contents/package.json?ref={{ $('Prep PR Vars').item.json.branch }}",
+        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/contents/package.json?ref={{ $('Prep PR Vars').item.json.branch }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
         "sendHeaders": true,
@@ -509,7 +509,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "https://api.github.com/repos/Subharjun/reimbursement-intake-v2/contents/package.json",
+        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/contents/package.json",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
         "sendHeaders": true,
@@ -570,7 +570,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.github.com/repos/Subharjun/reimbursement-intake-v2/pulls",
+        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/pulls",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
         "sendHeaders": true,
@@ -631,7 +631,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.github.com/repos/Subharjun/reimbursement-intake-v2",
+        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
         "sendHeaders": true,
