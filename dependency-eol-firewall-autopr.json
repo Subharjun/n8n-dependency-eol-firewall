@@ -1,5 +1,5 @@
 {
-  "name": "Dependency EOL Firewall \u2014 Auto-PR (Multi-Agent)",
+  "name": "Dependency EOL Firewall — Auto-PR (Multi-Agent)",
   "nodes": [
     {
       "parameters": {
@@ -57,8 +57,8 @@
       "webhookId": "b5844067-eae1-40f2-9088-2511c270bfbf",
       "credentials": {
         "githubApi": {
-          "id": "REPLACE_GITHUB_CRED_ID",
-          "name": "GitHub account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_githubApi"
         }
       }
     },
@@ -115,11 +115,11 @@
         "text": "=You are a dependency risk triage agent. Given the registry facts for one package, decide whether it poses a real deprecation, end-of-life, or breaking-change risk that a maintainer should act on NOW. A stale-but-fine package is NOT a risk. Prioritize: explicit deprecation messages, packages 1+ majors behind, and long-unmaintained packages.\n\nPackage: {{ $json.name }}\nInstalled: {{ $json.current_range }} (resolved {{ $json.current_version }})\nLatest: {{ $json.latest_version }} ({{ $json.majors_behind }} major(s) behind)\nDays since latest publish: {{ $json.days_since_latest_publish }}\nPackage deprecated message: {{ $json.package_deprecated }}\nInstalled version deprecated message: {{ $json.current_version_deprecated }}\nEngines required by latest: {{ JSON.stringify($json.engines) }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "Return strict JSON only. Be decisive and conservative \u2014 only flag genuine, actionable risk."
+          "systemMessage": "Return strict JSON only. Be decisive and conservative — only flag genuine, actionable risk."
         }
       },
       "id": "agent-watcher",
-      "name": "Agent 1 \u2014 Watcher/Triage",
+      "name": "Agent 1 — Watcher/Triage",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
@@ -135,7 +135,7 @@
         }
       },
       "id": "llm-watcher",
-      "name": "Claude \u2014 Watcher",
+      "name": "Claude — Watcher",
       "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
@@ -144,8 +144,8 @@
       ],
       "credentials": {
         "groqApi": {
-          "id": "REPLACE_GROQ_CRED_ID",
-          "name": "Groq account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_groqApi"
         }
       }
     },
@@ -196,7 +196,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const owner = $('Config: owner/repo').item.json.owner;\nconst repo = $('Config: owner/repo').item.json.repo;\nconst dep = $('Assess Registry Facts').item.json.name;\nconst cur = $('Assess Registry Facts').item.json.current_version;\nconst latest = $('Assess Registry Facts').item.json.latest_version;\nconst summary = $('Agent 1 \u2014 Watcher/Triage').item.json.output.summary;\nconst H = { 'User-Agent': 'n8n', 'Accept': 'application/vnd.github+json' };\nconst meta = await this.helpers.httpRequest({ url: `https://api.github.com/repos/${owner}/${repo}`, headers: H, json: true });\nconst branch = meta.default_branch;\nconst tree = await this.helpers.httpRequest({ url: `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`, headers: H, json: true });\nconst exts = /\\.(js|jsx|ts|tsx|mjs|cjs|vue|svelte)$/i;\nconst files = (tree.tree || []).filter(t => t.type === 'blob' && exts.test(t.path)).slice(0, 25);\nconst esc = dep.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst re = new RegExp(`(require\\\\(['\"\\`]${esc}['\"\\`]\\\\)|from ['\"\\`]${esc}['\"\\`]|import ['\"\\`]${esc}['\"\\`])`);\nconst affected = [];\nfor (const f of files) {\n  try {\n    const txt = await this.helpers.httpRequest({ url: `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${f.path}`, headers: { 'User-Agent': 'n8n' } });\n    const s = typeof txt === 'string' ? txt : JSON.stringify(txt);\n    if (re.test(s)) {\n      const lines = s.split('\\n').map(l => l.trim()).filter(l => l.includes(dep)).slice(0, 3);\n      affected.push({ path: f.path, snippets: lines });\n    }\n  } catch (e) {}\n}\nreturn { json: { name: dep, current_version: cur, latest_version: latest, risk_summary: summary, total_hits: affected.length, affected_files: affected } };",
+        "jsCode": "const owner = $('Config: owner/repo').item.json.owner;\nconst repo = $('Config: owner/repo').item.json.repo;\nconst dep = $('Assess Registry Facts').item.json.name;\nconst cur = $('Assess Registry Facts').item.json.current_version;\nconst latest = $('Assess Registry Facts').item.json.latest_version;\nconst summary = $('Agent 1 — Watcher/Triage').item.json.output.summary;\nconst H = { 'User-Agent': 'n8n', 'Accept': 'application/vnd.github+json' };\nconst meta = await this.helpers.httpRequest({ url: `https://api.github.com/repos/${owner}/${repo}`, headers: H, json: true });\nconst branch = meta.default_branch;\nconst tree = await this.helpers.httpRequest({ url: `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`, headers: H, json: true });\nconst exts = /\\.(js|jsx|ts|tsx|mjs|cjs|vue|svelte)$/i;\nconst files = (tree.tree || []).filter(t => t.type === 'blob' && exts.test(t.path)).slice(0, 25);\nconst esc = dep.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst re = new RegExp(`(require\\\\(['\"\\`]${esc}['\"\\`]\\\\)|from ['\"\\`]${esc}['\"\\`]|import ['\"\\`]${esc}['\"\\`])`);\nconst affected = [];\nfor (const f of files) {\n  try {\n    const txt = await this.helpers.httpRequest({ url: `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${f.path}`, headers: { 'User-Agent': 'n8n' } });\n    const s = typeof txt === 'string' ? txt : JSON.stringify(txt);\n    if (re.test(s)) {\n      const lines = s.split('\\n').map(l => l.trim()).filter(l => l.includes(dep)).slice(0, 3);\n      affected.push({ path: f.path, snippets: lines });\n    }\n  } catch (e) {}\n}\nreturn { json: { name: dep, current_version: cur, latest_version: latest, risk_summary: summary, total_hits: affected.length, affected_files: affected } };",
         "mode": "runOnceForEachItem"
       },
       "id": "summarize-usage",
@@ -218,7 +218,7 @@
         }
       },
       "id": "agent-blast",
-      "name": "Agent 2 \u2014 Blast-Radius",
+      "name": "Agent 2 — Blast-Radius",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
@@ -234,7 +234,7 @@
         }
       },
       "id": "llm-blast",
-      "name": "Claude \u2014 Blast-Radius",
+      "name": "Claude — Blast-Radius",
       "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
@@ -243,8 +243,8 @@
       ],
       "credentials": {
         "groqApi": {
-          "id": "REPLACE_GROQ_CRED_ID",
-          "name": "Groq account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_groqApi"
         }
       }
     },
@@ -264,14 +264,14 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=You are a senior migration engineer. Write a clear, ready-to-review GitHub Pull Request description in GitHub-flavored Markdown for upgrading this dependency.\n\nUse these sections:\n## Summary \u2014 why this upgrade matters (1-2 sentences)\n## Risk \u2014 state the risk type and severity\n## Upgrade command \u2014 the exact npm command in a fenced block\n## Migration plan \u2014 numbered steps tied to the affected files\n\nPackage: {{ $('Find Usage In Repo').item.json.name }} {{ $('Find Usage In Repo').item.json.current_version }} -> {{ $('Find Usage In Repo').item.json.latest_version }}\nRisk type / severity: {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.risk_type }} / {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.severity }}\nRisk summary: {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.summary }}\nSymbols used in code: {{ JSON.stringify($json.output.used_symbols) }}\nFiles affected: {{ JSON.stringify($json.output.files_touched) }}\nBreaking calls: {{ JSON.stringify($json.output.breaking_calls) }}\nEstimated effort: {{ $json.output.estimated_effort }}",
+        "text": "=You are a senior migration engineer. Write a clear, ready-to-review GitHub Pull Request description in GitHub-flavored Markdown for upgrading this dependency.\n\nUse these sections:\n## Summary — why this upgrade matters (1-2 sentences)\n## Risk — state the risk type and severity\n## Upgrade command — the exact npm command in a fenced block\n## Migration plan — numbered steps tied to the affected files\n\nPackage: {{ $('Find Usage In Repo').item.json.name }} {{ $('Find Usage In Repo').item.json.current_version }} -> {{ $('Find Usage In Repo').item.json.latest_version }}\nRisk type / severity: {{ $('Agent 1 — Watcher/Triage').item.json.output.risk_type }} / {{ $('Agent 1 — Watcher/Triage').item.json.output.severity }}\nRisk summary: {{ $('Agent 1 — Watcher/Triage').item.json.output.summary }}\nSymbols used in code: {{ JSON.stringify($json.output.used_symbols) }}\nFiles affected: {{ JSON.stringify($json.output.files_touched) }}\nBreaking calls: {{ JSON.stringify($json.output.breaking_calls) }}\nEstimated effort: {{ $json.output.estimated_effort }}",
         "hasOutputParser": false,
         "options": {
           "systemMessage": "Output ONLY GitHub-flavored Markdown for the PR body. Do not return JSON and do not wrap the whole response in a code fence."
         }
       },
       "id": "agent-drafter",
-      "name": "Agent 3 \u2014 Migration Drafter",
+      "name": "Agent 3 — Migration Drafter",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
@@ -287,7 +287,7 @@
         }
       },
       "id": "llm-drafter",
-      "name": "Claude \u2014 Drafter",
+      "name": "Claude — Drafter",
       "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
@@ -296,8 +296,8 @@
       ],
       "credentials": {
         "groqApi": {
-          "id": "REPLACE_GROQ_CRED_ID",
-          "name": "Groq account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_groqApi"
         }
       }
     },
@@ -347,8 +347,8 @@
       ],
       "credentials": {
         "githubApi": {
-          "id": "REPLACE_GITHUB_CRED_ID",
-          "name": "GitHub account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_githubApi"
         }
       }
     },
@@ -398,8 +398,8 @@
       ],
       "credentials": {
         "githubApi": {
-          "id": "REPLACE_GITHUB_CRED_ID",
-          "name": "GitHub account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_githubApi"
         }
       }
     },
@@ -435,8 +435,8 @@
       ],
       "credentials": {
         "githubApi": {
-          "id": "REPLACE_GITHUB_CRED_ID",
-          "name": "GitHub account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_githubApi"
         }
       }
     },
@@ -508,15 +508,15 @@
       ],
       "credentials": {
         "githubApi": {
-          "id": "REPLACE_GITHUB_CRED_ID",
-          "name": "GitHub account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_githubApi"
         }
       }
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/pulls",
+        "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').first().json.owner }}/{{ $('Config: owner/repo').first().json.repo }}/pulls",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
         "sendHeaders": true,
@@ -533,19 +533,19 @@
           "parameters": [
             {
               "name": "title",
-              "value": "={{ $('Prep PR Vars').item.json.pr_title }}"
+              "value": "={{ $json.pr_title }}"
             },
             {
               "name": "head",
-              "value": "={{ $('Prep PR Vars').item.json.branch }}"
+              "value": "={{ $json.branch }}"
             },
             {
               "name": "base",
-              "value": "={{ $('GH: Get Default Branch').item.json.default_branch }}"
+              "value": "={{ $json.default_branch }}"
             },
             {
               "name": "body",
-              "value": "={{ $('Prep PR Vars').item.json.pr_body }}"
+              "value": "={{ $json.pr_body }}"
             }
           ]
         },
@@ -567,8 +567,8 @@
       ],
       "credentials": {
         "githubApi": {
-          "id": "REPLACE_GITHUB_CRED_ID",
-          "name": "GitHub account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_githubApi"
         }
       }
     },
@@ -604,8 +604,8 @@
       ],
       "credentials": {
         "githubApi": {
-          "id": "REPLACE_GITHUB_CRED_ID",
-          "name": "GitHub account"
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_githubApi"
         }
       }
     },
@@ -637,6 +637,235 @@
         128,
         304
       ]
+    },
+    {
+      "id": "assemble-migration",
+      "name": "Assemble Migration Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        1450
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = $('Config: owner/repo').item.json;\nconst owner = cfg.owner, repo = cfg.repo;\nconst p = $('Prep PR Vars').item.json;\nconst defBranch = $('GH: Get Default Branch').item.json.default_branch;\nconst usage = $('Find Usage In Repo').item.json;\nconst blast = ($('Agent 2 — Blast-Radius').item.json.output) || {};\nconst affected = (usage.affected_files || []).slice(0, 6);\nconst H = { 'User-Agent': 'n8n', 'Accept': 'application/vnd.github+json' };\nconst files = [];\nfor (const a of affected) {\n  try {\n    const meta = await this.helpers.httpRequest({\n      url: `https://api.github.com/repos/${owner}/${repo}/contents/${a.path}?ref=${p.branch}`,\n      headers: H, json: true\n    });\n    if (meta && meta.content) {\n      const content = Buffer.from(meta.content, 'base64').toString('utf8');\n      files.push({ path: a.path, content, sha: meta.sha });\n    }\n  } catch (e) {}\n}\nlet pkg_json_content = '', pkg_json_sha = '';\ntry {\n  const pj = await this.helpers.httpRequest({\n    url: `https://api.github.com/repos/${owner}/${repo}/contents/package.json?ref=${p.branch}`,\n    headers: H, json: true\n  });\n  if (pj && pj.content) {\n    pkg_json_content = Buffer.from(pj.content, 'base64').toString('utf8');\n    pkg_json_sha = pj.sha;\n  }\n} catch (e) {}\nlet agent_input = '';\nfor (const f of files) {\n  agent_input += `===FILE: ${f.path}===\\n${f.content}\\n===END===\\n\\n`;\n}\nreturn { json: {\n  owner, repo,\n  pkg: p.pkg, old_version: p.old_version, new_version: p.new_version,\n  branch: p.branch, pr_title: p.pr_title, pr_body: p.pr_body, default_branch: defBranch,\n  breaking_calls: blast.breaking_calls || [], used_symbols: blast.used_symbols || [],\n  files, has_files: files.length > 0, file_count: files.length,\n  pkg_json_content, pkg_json_sha,\n  agent_input\n} };"
+      }
+    },
+    {
+      "id": "if-has-files",
+      "name": "Has Source Files?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1010,
+        1450
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.has_files }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "agent-coder",
+      "name": "Agent 4 — Migration Coder",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        1250,
+        1390
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a senior migration engineer. Rewrite the given source file(s) so the project works with the NEW version of the dependency. Apply ONLY the changes required by this dependency upgrade (for example: CommonJS require() -> ESM import when the new major is ESM-only, renamed or removed APIs, changed function signatures). Preserve all other code, comments, and formatting exactly.\n\nDependency: {{ $json.pkg }}  {{ $json.old_version }} -> {{ $json.new_version }}\nKnown breaking calls: {{ JSON.stringify($json.breaking_calls) }}\nSymbols used in code: {{ JSON.stringify($json.used_symbols) }}\n\nReturn EVERY file you were given, each as the COMPLETE rewritten file, using EXACTLY this format and nothing else:\n===FILE: <path>===\n<full file content>\n===END===\n\nFiles to migrate:\n{{ $json.agent_input }}",
+        "hasOutputParser": false,
+        "options": {
+          "systemMessage": "Output ONLY the files in the exact ===FILE: <path>=== / ===END=== delimited format. Return the full content of each file. Do NOT wrap file contents in markdown code fences. Do NOT add explanations, headers, or any text outside the delimiters. If a file needs no changes, still return it unchanged in the same format."
+        }
+      }
+    },
+    {
+      "id": "llm-coder",
+      "name": "Groq — Coder",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        1560
+      ],
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_groqApi"
+        }
+      }
+    },
+    {
+      "id": "split-files",
+      "name": "Split Rewritten Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1490,
+        1390
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $('Has Source Files?').all(0);   // true-branch items, aligned with agent outputs\nconst inputs = $input.all();\nconst out = [];\nfor (let i = 0; i < inputs.length; i++) {\n  const j = (ctx[i] && ctx[i].json) || {};\n  let text = inputs[i].json.output;\n  if (text && typeof text === 'object') text = text.text || JSON.stringify(text);\n  text = String(text == null ? '' : text);\n  const parsed = {};\n  const re = /===FILE:\\s*(.+?)===\\r?\\n([\\s\\S]*?)\\r?\\n===END===/g;\n  let m;\n  while ((m = re.exec(text)) !== null) {\n    let path = m[1].trim();\n    let content = m[2].replace(/^```[a-zA-Z0-9]*\\r?\\n/, '').replace(/\\r?\\n```\\s*$/, '');\n    parsed[path] = content;\n  }\n  const origFiles = j.files || [];\n  let emitted = 0, esm = false;\n  for (const f of origFiles) {\n    const nc = parsed[f.path];\n    if (nc === undefined) continue;\n    if (nc === f.content) continue;\n    if (/\\brequire\\s*\\(/.test(f.content) && /^\\s*import\\s/m.test(nc)) esm = true;\n    out.push({ json: {\n      commit: true, owner: j.owner, repo: j.repo, path: f.path,\n      new_content_b64: Buffer.from(nc, 'utf8').toString('base64'), file_sha: f.sha,\n      commit_message: `refactor: migrate ${f.path} for ${j.pkg} ${j.new_version}`,\n      branch: j.branch, pr_title: j.pr_title, pr_body: j.pr_body, default_branch: j.default_branch\n    }});\n    emitted++;\n  }\n  if (esm && j.pkg_json_content) {\n    try {\n      const obj = JSON.parse(j.pkg_json_content);\n      if (!obj.type) {\n        const newObj = Object.assign({ type: 'module' }, obj);\n        const newPkg = JSON.stringify(newObj, null, 2) + '\\n';\n        out.push({ json: {\n          commit: true, owner: j.owner, repo: j.repo, path: 'package.json',\n          new_content_b64: Buffer.from(newPkg, 'utf8').toString('base64'), file_sha: j.pkg_json_sha,\n          commit_message: `chore: set \"type\":\"module\" for ESM migration of ${j.pkg}`,\n          branch: j.branch, pr_title: j.pr_title, pr_body: j.pr_body, default_branch: j.default_branch\n        }});\n      }\n    } catch (e) {}\n  }\n  if (emitted === 0) {\n    out.push({ json: {\n      commit: false, owner: j.owner, repo: j.repo,\n      branch: j.branch, pr_title: j.pr_title, pr_body: j.pr_body, default_branch: j.default_branch\n    }});\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "if-should-commit",
+      "name": "Should Commit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1730,
+        1390
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.commit }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "gh-commit-source",
+      "name": "GH: Commit Source File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1970,
+        1330
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/{{ $json.owner }}/{{ $json.repo }}/contents/{{ $json.path }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.commit_message }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json.new_content_b64 }}"
+            },
+            {
+              "name": "sha",
+              "value": "={{ $json.file_sha }}"
+            },
+            {
+              "name": "branch",
+              "value": "={{ $json.branch }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "credentials": {
+        "githubApi": {
+          "id": "REPLACE_CREDENTIAL_ID",
+          "name": "REPLACE_githubApi"
+        }
+      }
+    },
+    {
+      "id": "finalize-pr",
+      "name": "Finalize PR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1970,
+        1560
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const seen = {};\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  if (!j.branch) continue;\n  if (seen[j.branch]) continue;\n  seen[j.branch] = true;\n  out.push({ json: {\n    branch: j.branch, pr_title: j.pr_title, pr_body: j.pr_body, default_branch: j.default_branch\n  }});\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "tag-committed",
+      "name": "Tag Committed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2210,
+        1330
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const s = $('Should Commit?').item.json;\nreturn { json: { branch: s.branch, pr_title: s.pr_title, pr_body: s.pr_body, default_branch: s.default_branch } };"
+      }
     }
   ],
   "connections": {
@@ -688,18 +917,18 @@
       "main": [
         [
           {
-            "node": "Agent 1 \u2014 Watcher/Triage",
+            "node": "Agent 1 — Watcher/Triage",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Claude \u2014 Watcher": {
+    "Claude — Watcher": {
       "ai_languageModel": [
         [
           {
-            "node": "Agent 1 \u2014 Watcher/Triage",
+            "node": "Agent 1 — Watcher/Triage",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -710,14 +939,14 @@
       "ai_outputParser": [
         [
           {
-            "node": "Agent 1 \u2014 Watcher/Triage",
+            "node": "Agent 1 — Watcher/Triage",
             "type": "ai_outputParser",
             "index": 0
           }
         ]
       ]
     },
-    "Agent 1 \u2014 Watcher/Triage": {
+    "Agent 1 — Watcher/Triage": {
       "main": [
         [
           {
@@ -739,11 +968,11 @@
         ]
       ]
     },
-    "Claude \u2014 Blast-Radius": {
+    "Claude — Blast-Radius": {
       "ai_languageModel": [
         [
           {
-            "node": "Agent 2 \u2014 Blast-Radius",
+            "node": "Agent 2 — Blast-Radius",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -754,36 +983,36 @@
       "ai_outputParser": [
         [
           {
-            "node": "Agent 2 \u2014 Blast-Radius",
+            "node": "Agent 2 — Blast-Radius",
             "type": "ai_outputParser",
             "index": 0
           }
         ]
       ]
     },
-    "Agent 2 \u2014 Blast-Radius": {
+    "Agent 2 — Blast-Radius": {
       "main": [
         [
           {
-            "node": "Agent 3 \u2014 Migration Drafter",
+            "node": "Agent 3 — Migration Drafter",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Claude \u2014 Drafter": {
+    "Claude — Drafter": {
       "ai_languageModel": [
         [
           {
-            "node": "Agent 3 \u2014 Migration Drafter",
+            "node": "Agent 3 — Migration Drafter",
             "type": "ai_languageModel",
             "index": 0
           }
         ]
       ]
     },
-    "Agent 3 \u2014 Migration Drafter": {
+    "Agent 3 — Migration Drafter": {
       "main": [
         [
           {
@@ -842,7 +1071,7 @@
       "main": [
         [
           {
-            "node": "GH: Open Pull Request",
+            "node": "Assemble Migration Input",
             "type": "main",
             "index": 0
           }
@@ -886,7 +1115,120 @@
       "main": [
         [
           {
-            "node": "Agent 2 \u2014 Blast-Radius",
+            "node": "Agent 2 — Blast-Radius",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Migration Input": {
+      "main": [
+        [
+          {
+            "node": "Has Source Files?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Source Files?": {
+      "main": [
+        [
+          {
+            "node": "Agent 4 — Migration Coder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finalize PR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq — Coder": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 4 — Migration Coder",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 4 — Migration Coder": {
+      "main": [
+        [
+          {
+            "node": "Split Rewritten Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Rewritten Files": {
+      "main": [
+        [
+          {
+            "node": "Should Commit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Commit?": {
+      "main": [
+        [
+          {
+            "node": "GH: Commit Source File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finalize PR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GH: Commit Source File": {
+      "main": [
+        [
+          {
+            "node": "Tag Committed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize PR": {
+      "main": [
+        [
+          {
+            "node": "GH: Open Pull Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Committed": {
+      "main": [
+        [
+          {
+            "node": "Finalize PR",
             "type": "main",
             "index": 0
           }
@@ -896,6 +1238,5 @@
   },
   "settings": {
     "executionOrder": "v1"
-  },
-  "pinData": {}
+  }
 }
