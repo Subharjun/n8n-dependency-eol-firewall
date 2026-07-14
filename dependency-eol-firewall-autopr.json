@@ -20,13 +20,12 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        120,
-        120
+        128,
+        128
       ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/contents/package.json",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
@@ -52,9 +51,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
-        120
+        448,
+        128
       ],
+      "webhookId": "b5844067-eae1-40f2-9088-2511c270bfbf",
       "credentials": {
         "githubApi": {
           "id": "REPLACE_GITHUB_CRED_ID",
@@ -71,8 +71,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        760,
-        120
+        768,
+        128
       ]
     },
     {
@@ -91,22 +91,22 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1080,
-        120
+        1088,
+        128
       ]
     },
     {
       "parameters": {
-        "jsCode": "const reg = $json;\nconst name = $('Parse Manifest').item.json.name;\nconst currentVersion = $('Parse Manifest').item.json.current_version;\nconst currentRange = $('Parse Manifest').item.json.current_range;\nconst distTags = reg['dist-tags'] || {};\nconst latest = distTags.latest || null;\nconst versions = reg.versions || {};\nconst time = reg.time || {};\nconst latestMeta = latest ? versions[latest] || {} : {};\nconst currentMeta = versions[currentVersion] || {};\nconst majorOf = v => v ? parseInt(String(v).split('.')[0], 10) : null;\nconst curMajor = majorOf(currentVersion), latestMajor = majorOf(latest);\nconst majorsBehind = (curMajor != null && latestMajor != null) ? Math.max(0, latestMajor - curMajor) : null;\nlet daysSinceLatest = null;\nif (latest && time[latest]) daysSinceLatest = Math.round((Date.now() - new Date(time[latest]).getTime())/86400000);\nreturn { json: { name, current_range: currentRange, current_version: currentVersion, latest_version: latest, majors_behind: majorsBehind, days_since_latest_publish: daysSinceLatest, current_version_deprecated: currentMeta.deprecated || null, latest_version_deprecated: latestMeta.deprecated || null, package_deprecated: reg.deprecated || null, engines: latestMeta.engines || null, homepage: reg.homepage || null, repository_url: (reg.repository && reg.repository.url) || null } };",
-        "mode": "runOnceForEachItem"
+        "mode": "runOnceForEachItem",
+        "jsCode": "const reg = $json;\nconst name = $('Parse Manifest').item.json.name;\nconst currentVersion = $('Parse Manifest').item.json.current_version;\nconst currentRange = $('Parse Manifest').item.json.current_range;\nconst distTags = reg['dist-tags'] || {};\nconst latest = distTags.latest || null;\nconst versions = reg.versions || {};\nconst time = reg.time || {};\nconst latestMeta = latest ? versions[latest] || {} : {};\nconst currentMeta = versions[currentVersion] || {};\nconst majorOf = v => v ? parseInt(String(v).split('.')[0], 10) : null;\nconst curMajor = majorOf(currentVersion), latestMajor = majorOf(latest);\nconst majorsBehind = (curMajor != null && latestMajor != null) ? Math.max(0, latestMajor - curMajor) : null;\nlet daysSinceLatest = null;\nif (latest && time[latest]) daysSinceLatest = Math.round((Date.now() - new Date(time[latest]).getTime())/86400000);\nreturn { json: { name, current_range: currentRange, current_version: currentVersion, latest_version: latest, majors_behind: majorsBehind, days_since_latest_publish: daysSinceLatest, current_version_deprecated: currentMeta.deprecated || null, latest_version_deprecated: latestMeta.deprecated || null, package_deprecated: reg.deprecated || null, engines: latestMeta.engines || null, homepage: reg.homepage || null, repository_url: (reg.repository && reg.repository.url) || null } };"
       },
       "id": "assess-metadata",
       "name": "Assess Registry Facts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
-        120
+        1408,
+        128
       ]
     },
     {
@@ -123,8 +123,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
-        1400,
-        460
+        1408,
+        464
       ]
     },
     {
@@ -139,8 +139,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
-        1320,
-        630
+        1328,
+        640
       ],
       "credentials": {
         "groqApi": {
@@ -158,8 +158,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.2,
       "position": [
-        1500,
-        630
+        1504,
+        640
       ]
     },
     {
@@ -167,7 +167,9 @@
         "conditions": {
           "options": {
             "caseSensitive": true,
-            "typeValidation": "loose"
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
           },
           "conditions": [
             {
@@ -188,58 +190,21 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.2,
       "position": [
-        1080,
-        460
+        1088,
+        464
       ]
     },
     {
       "parameters": {
-        "url": "=https://api.github.com/search/code?q={{ encodeURIComponent($('Assess Registry Facts').item.json.name) }}+repo:{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "githubApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Accept",
-              "value": "application/vnd.github.text-match+json"
-            }
-          ]
-        },
-        "options": {
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
-        }
-      },
-      "id": "search-usage",
-      "name": "Search Repo For Usage",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        760,
-        460
-      ],
-      "credentials": {
-        "githubApi": {
-          "id": "REPLACE_GITHUB_CRED_ID",
-          "name": "GitHub account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const res = $json;\nconst items = (res && res.items) || [];\nconst files = items.slice(0,15).map(it => ({ path: it.path, snippets: (it.text_matches||[]).map(m => (m.fragment||'').trim()).slice(0,2) }));\nreturn { json: { name: $('Assess Registry Facts').item.json.name, latest_version: $('Assess Registry Facts').item.json.latest_version, current_version: $('Assess Registry Facts').item.json.current_version, risk_summary: $('Agent 1 \u2014 Watcher/Triage').item.json.output.summary, total_hits: res.total_count || files.length, affected_files: files } };",
+        "jsCode": "const owner = $('Config: owner/repo').item.json.owner;\nconst repo = $('Config: owner/repo').item.json.repo;\nconst dep = $('Assess Registry Facts').item.json.name;\nconst cur = $('Assess Registry Facts').item.json.current_version;\nconst latest = $('Assess Registry Facts').item.json.latest_version;\nconst summary = $('Agent 1 \u2014 Watcher/Triage').item.json.output.summary;\nconst H = { 'User-Agent': 'n8n', 'Accept': 'application/vnd.github+json' };\nconst meta = await this.helpers.httpRequest({ url: `https://api.github.com/repos/${owner}/${repo}`, headers: H, json: true });\nconst branch = meta.default_branch;\nconst tree = await this.helpers.httpRequest({ url: `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`, headers: H, json: true });\nconst exts = /\\.(js|jsx|ts|tsx|mjs|cjs|vue|svelte)$/i;\nconst files = (tree.tree || []).filter(t => t.type === 'blob' && exts.test(t.path)).slice(0, 25);\nconst esc = dep.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst re = new RegExp(`(require\\\\(['\"\\`]${esc}['\"\\`]\\\\)|from ['\"\\`]${esc}['\"\\`]|import ['\"\\`]${esc}['\"\\`])`);\nconst affected = [];\nfor (const f of files) {\n  try {\n    const txt = await this.helpers.httpRequest({ url: `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${f.path}`, headers: { 'User-Agent': 'n8n' } });\n    const s = typeof txt === 'string' ? txt : JSON.stringify(txt);\n    if (re.test(s)) {\n      const lines = s.split('\\n').map(l => l.trim()).filter(l => l.includes(dep)).slice(0, 3);\n      affected.push({ path: f.path, snippets: lines });\n    }\n  } catch (e) {}\n}\nreturn { json: { name: dep, current_version: cur, latest_version: latest, risk_summary: summary, total_hits: affected.length, affected_files: affected } };",
         "mode": "runOnceForEachItem"
       },
       "id": "summarize-usage",
-      "name": "Summarize Usage",
+      "name": "Find Usage In Repo",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        440,
+        760,
         460
       ]
     },
@@ -257,8 +222,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
-        120,
-        460
+        128,
+        464
       ]
     },
     {
@@ -273,8 +238,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
-        60,
-        630
+        64,
+        640
       ],
       "credentials": {
         "groqApi": {
@@ -292,8 +257,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.2,
       "position": [
-        250,
-        630
+        256,
+        640
       ]
     },
     {
@@ -310,8 +275,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
-        120,
-        820
+        128,
+        832
       ]
     },
     {
@@ -326,8 +291,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
-        60,
-        990
+        64,
+        992
       ],
       "credentials": {
         "groqApi": {
@@ -345,27 +310,26 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.2,
       "position": [
-        250,
-        990
+        256,
+        992
       ]
     },
     {
       "parameters": {
-        "jsCode": "const f = $('Assess Registry Facts').item.json;\nconst o = $json.output || {};\nconst slug = String(f.name).replace(/[^a-zA-Z0-9._-]/g,'-');\nreturn { json: { pkg: f.name, old_version: f.current_version, new_version: f.latest_version, branch: `eol-firewall/bump-${slug}-${f.latest_version}-${Date.now()}`, pr_title: o.issue_title || `chore(deps): bump ${f.name} to ${f.latest_version}`, pr_body: (o.issue_body_markdown || '') + '\\n\\n---\\n_Opened automatically by the Dependency EOL Firewall. Version bump is deterministic; migration notes are AI-drafted. Review before merge._' } };",
-        "mode": "runOnceForEachItem"
+        "mode": "runOnceForEachItem",
+        "jsCode": "const f = $('Assess Registry Facts').item.json;\nconst o = $json.output || {};\nconst slug = String(f.name).replace(/[^a-zA-Z0-9._-]/g,'-');\nreturn { json: { pkg: f.name, old_version: f.current_version, new_version: f.latest_version, branch: `eol-firewall/bump-${slug}-${f.latest_version}-${Date.now()}`, pr_title: o.issue_title || `chore(deps): bump ${f.name} to ${f.latest_version}`, pr_body: (o.issue_body_markdown || '') + '\\n\\n---\\n_Opened automatically by the Dependency EOL Firewall. Version bump is deterministic; migration notes are AI-drafted. Review before merge._' } };"
       },
       "id": "prep-pr",
       "name": "Prep PR Vars",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        440,
-        820
+        448,
+        832
       ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/git/ref/heads/{{ $('GH: Get Default Branch').item.json.default_branch }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
@@ -391,8 +355,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        760,
-        820
+        768,
+        832
       ],
       "credentials": {
         "githubApi": {
@@ -416,16 +380,7 @@
             }
           ]
         },
-        "options": {
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
-        },
         "sendBody": true,
-        "contentType": "json",
-        "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
             {
@@ -437,6 +392,13 @@
               "value": "={{ $json.object.sha }}"
             }
           ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "gh-create-branch",
@@ -444,8 +406,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1080,
-        820
+        1088,
+        832
       ],
       "credentials": {
         "githubApi": {
@@ -456,7 +418,6 @@
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}/contents/package.json?ref={{ $('Prep PR Vars').item.json.branch }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
@@ -482,8 +443,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1400,
-        820
+        1408,
+        832
       ],
       "credentials": {
         "githubApi": {
@@ -494,16 +455,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const p = $('Prep PR Vars').item.json;\nconst pj = $json;\nconst text = Buffer.from(pj.content, 'base64').toString('utf8');\nconst esc = s => String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst re = new RegExp('(\"' + esc(p.pkg) + '\"\\\\s*:\\\\s*\")([~^]?)' + esc(p.old_version) + '(\")');\nconst newText = text.replace(re, `$1$2${p.new_version}$3`);\nif (newText === text) throw new Error('version string not found for ' + p.pkg);\nreturn { json: { new_content_b64: Buffer.from(newText).toString('base64'), file_sha: pj.sha } };",
-        "mode": "runOnceForEachItem"
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p = $('Prep PR Vars').item.json;\nconst pj = $json;\nconst text = Buffer.from(pj.content, 'base64').toString('utf8');\nconst esc = s => String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst re = new RegExp('(\"' + esc(p.pkg) + '\"\\\\s*:\\\\s*\")([~^]?)' + esc(p.old_version) + '(\")');\nconst newText = text.replace(re, `$1$2${p.new_version}$3`);\nif (newText === text) throw new Error('version string not found for ' + p.pkg);\nreturn { json: { new_content_b64: Buffer.from(newText).toString('base64'), file_sha: pj.sha } };"
       },
       "id": "bump",
       "name": "Bump package.json",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
-        1160
+        1408,
+        1168
       ]
     },
     {
@@ -521,16 +482,7 @@
             }
           ]
         },
-        "options": {
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
-        },
         "sendBody": true,
-        "contentType": "json",
-        "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
             {
@@ -550,6 +502,13 @@
               "value": "={{ $('Prep PR Vars').item.json.branch }}"
             }
           ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "gh-commit",
@@ -557,8 +516,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1080,
-        1160
+        1088,
+        1168
       ],
       "credentials": {
         "githubApi": {
@@ -582,16 +541,7 @@
             }
           ]
         },
-        "options": {
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
-        },
         "sendBody": true,
-        "contentType": "json",
-        "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
             {
@@ -611,6 +561,13 @@
               "value": "={{ $('Prep PR Vars').item.json.pr_body }}"
             }
           ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "gh-open-pr",
@@ -618,8 +575,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        760,
-        1160
+        768,
+        1168
       ],
       "credentials": {
         "githubApi": {
@@ -630,7 +587,6 @@
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=https://api.github.com/repos/{{ $('Config: owner/repo').item.json.owner }}/{{ $('Config: owner/repo').item.json.repo }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
@@ -656,8 +612,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
-        990
+        448,
+        992
       ],
       "credentials": {
         "githubApi": {
@@ -684,7 +640,6 @@
             }
           ]
         },
-        "includeOtherFields": false,
         "options": {}
       },
       "id": "config",
@@ -692,8 +647,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        120,
-        300
+        128,
+        304
       ]
     }
   ],
@@ -790,29 +745,7 @@
       "main": [
         [
           {
-            "node": "Search Repo For Usage",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Search Repo For Usage": {
-      "main": [
-        [
-          {
-            "node": "Summarize Usage",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Summarize Usage": {
-      "main": [
-        [
-          {
-            "node": "Agent 2 \u2014 Blast-Radius",
+            "node": "Find Usage In Repo",
             "type": "main",
             "index": 0
           }
@@ -967,6 +900,17 @@
         [
           {
             "node": "Read package.json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Usage In Repo": {
+      "main": [
+        [
+          {
+            "node": "Agent 2 \u2014 Blast-Radius",
             "type": "main",
             "index": 0
           }
