@@ -264,10 +264,10 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=You are a migration engineer. Write a complete GitHub Issue that a developer can act on immediately to eliminate this dependency risk. Include the exact upgrade command, an ordered migration plan tied to the specific files, and a unified-diff patch for the clearest change you can infer. If a change is uncertain, mark it as TODO rather than inventing code.\n\nPackage: {{ $('Find Usage In Repo').item.json.name }} {{ $('Find Usage In Repo').item.json.current_version }} -> {{ $('Find Usage In Repo').item.json.latest_version }}\nRisk: {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.risk_type }} / {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.severity }}\nSummary: {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.summary }}\nUsed symbols: {{ JSON.stringify($json.output.used_symbols) }}\nFiles touched: {{ JSON.stringify($json.output.files_touched) }}\nBreaking calls: {{ JSON.stringify($json.output.breaking_calls) }}\nEffort: {{ $json.output.estimated_effort }}",
-        "hasOutputParser": true,
+        "text": "=You are a senior migration engineer. Write a clear, ready-to-review GitHub Pull Request description in GitHub-flavored Markdown for upgrading this dependency.\n\nUse these sections:\n## Summary \u2014 why this upgrade matters (1-2 sentences)\n## Risk \u2014 state the risk type and severity\n## Upgrade command \u2014 the exact npm command in a fenced block\n## Migration plan \u2014 numbered steps tied to the affected files\n\nPackage: {{ $('Find Usage In Repo').item.json.name }} {{ $('Find Usage In Repo').item.json.current_version }} -> {{ $('Find Usage In Repo').item.json.latest_version }}\nRisk type / severity: {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.risk_type }} / {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.severity }}\nRisk summary: {{ $('Agent 1 \u2014 Watcher/Triage').item.json.output.summary }}\nSymbols used in code: {{ JSON.stringify($json.output.used_symbols) }}\nFiles affected: {{ JSON.stringify($json.output.files_touched) }}\nBreaking calls: {{ JSON.stringify($json.output.breaking_calls) }}\nEstimated effort: {{ $json.output.estimated_effort }}",
+        "hasOutputParser": false,
         "options": {
-          "systemMessage": "Return strict JSON only. issue_body_markdown must be valid GitHub-flavored Markdown and include a fenced diff block when a patch is provided."
+          "systemMessage": "Output ONLY GitHub-flavored Markdown for the PR body. Do not return JSON and do not wrap the whole response in a code fence."
         }
       },
       "id": "agent-drafter",
@@ -303,21 +303,8 @@
     },
     {
       "parameters": {
-        "jsonSchemaExample": "{\n  \"issue_title\": \"[EOL] Migrate <pkg> 4.x -> 6.x (deprecated, security)\",\n  \"issue_body_markdown\": \"## Why\\n...\\n## Upgrade\\n```sh\\nnpm i pkg@6\\n```\\n## Migration plan\\n1. ...\\n## Suggested patch\\n```diff\\n--- a/src/db.js\\n+++ b/src/db.js\\n@@\\n-old\\n+new\\n```\",\n  \"labels\": [\"dependencies\", \"tech-debt\"]\n}"
-      },
-      "id": "parser-drafter",
-      "name": "Parse: Issue Content",
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1.2,
-      "position": [
-        256,
-        992
-      ]
-    },
-    {
-      "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const f = $('Assess Registry Facts').item.json;\nconst o = $json.output || {};\nconst slug = String(f.name).replace(/[^a-zA-Z0-9._-]/g,'-');\nreturn { json: { pkg: f.name, old_version: f.current_version, new_version: f.latest_version, branch: `eol-firewall/bump-${slug}-${f.latest_version}-${Date.now()}`, pr_title: o.issue_title || `chore(deps): bump ${f.name} to ${f.latest_version}`, pr_body: (o.issue_body_markdown || '') + '\\n\\n---\\n_Opened automatically by the Dependency EOL Firewall. Version bump is deterministic; migration notes are AI-drafted. Review before merge._' } };"
+        "jsCode": "const f = $('Assess Registry Facts').item.json;\nconst out = $json.output;\nconst body = (typeof out === 'string' ? out : ((out && out.issue_body_markdown) || '')) + '\\n\\n---\\n_Opened automatically by the Dependency EOL Firewall. Version bump is deterministic; migration notes are AI-drafted. Review before merge._';\nconst slug = String(f.name).replace(/[^a-zA-Z0-9._-]/g,'-');\nreturn { json: { pkg: f.name, old_version: f.current_version, new_version: f.latest_version, branch: `eol-firewall/bump-${slug}-${f.latest_version}-${Date.now()}`, pr_title: `chore(deps): bump ${f.name} ${f.current_version} -> ${f.latest_version}`, pr_body: body } };"
       },
       "id": "prep-pr",
       "name": "Prep PR Vars",
@@ -791,17 +778,6 @@
           {
             "node": "Agent 3 \u2014 Migration Drafter",
             "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse: Issue Content": {
-      "ai_outputParser": [
-        [
-          {
-            "node": "Agent 3 \u2014 Migration Drafter",
-            "type": "ai_outputParser",
             "index": 0
           }
         ]
